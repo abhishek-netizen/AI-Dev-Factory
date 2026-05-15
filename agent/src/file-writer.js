@@ -11,14 +11,36 @@ const execAsync = promisify(exec);
 async function writeFiles(projectDir, files, commands = []) {
   // Write each file
   for (const file of files) {
-    const fullPath = path.join(projectDir, file.path);
+    let relativePath = file.path || '';
+
+    // Normalize the file path to ensure writes stay in the project root.
+    relativePath = relativePath.replace(/^[\/]+/, '');
+    relativePath = relativePath.replace(/^\.([\/]+)/, '');
+    relativePath = relativePath.replace(/^projects[\/]+[^\/]+[\/]+/, '');
+
+    const projectName = path.basename(projectDir);
+    const projectPrefix = `${projectName}${path.sep}`;
+    if (relativePath.startsWith(projectPrefix)) {
+      relativePath = relativePath.slice(projectPrefix.length);
+    }
+
+    // Normalize separators and collapse redundant segments
+    relativePath = path.normalize(relativePath);
+    if (relativePath.startsWith(path.sep)) {
+      relativePath = relativePath.slice(1);
+    }
+
+    const fullPath = path.resolve(projectDir, relativePath);
+    if (!fullPath.startsWith(projectDir)) {
+      throw new Error(`Invalid file path outside project root: ${file.path}`);
+    }
 
     // Create directory if it doesn't exist
     await fs.ensureDir(path.dirname(fullPath));
 
     // Write file content
     await fs.writeFile(fullPath, file.content, 'utf-8');
-    console.log(chalk.gray(`  ✓ Written: ${file.path}`));
+    console.log(chalk.gray(`  ✓ Written: ${relativePath}`));
   }
 
   // Run post-write commands (npm installs, migrations etc.)

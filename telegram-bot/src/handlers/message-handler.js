@@ -110,6 +110,17 @@ export async function messageHandler(bot, msg) {
     pollTask();
 
   } catch (err) {
+    const status = err.response?.status;
+    const agentError = err.response?.data?.error;
+
+    if (status === 404 && agentError) {
+      await bot.editMessageText(
+        `❌ Could not create task: *${agentError}*\n\nPlease verify the project name and try again.`,
+        { chat_id: chatId, message_id: sent.message_id, parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
     await bot.editMessageText(
       `❌ Could not create task: \`${err.message}\``,
       { chat_id: chatId, message_id: sent.message_id, parse_mode: 'Markdown' }

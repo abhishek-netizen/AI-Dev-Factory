@@ -32,6 +32,11 @@ app.post('/task', async (req, res) => {
     return res.status(400).json({ error: 'project and task are required' });
   }
 
+  const projectDir = path.join('/projects', project);
+  if (!await fs.pathExists(projectDir)) {
+    return res.status(404).json({ error: `Project '${project}' does not exist` });
+  }
+
   console.log(chalk.blue(`\n▶ Running task: ${task} for project: ${project}`));
 
   // Acknowledge immediately, run async
@@ -56,6 +61,10 @@ app.post('/task-from-bot', async (req, res) => {
 
   try {
     const projectDir = path.join('/projects', project);
+    if (!await fs.pathExists(projectDir)) {
+      return res.status(404).json({ error: `Project '${project}' does not exist` });
+    }
+
     const tasksDir = path.join(projectDir, 'tasks');
     await fs.ensureDir(tasksDir);
 
