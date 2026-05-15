@@ -1,0 +1,230 @@
+version: "3.9"
+
+# ============================================================
+#  AI DEV FACTORY — Master Docker Compose
+#  Project: AI Dev Factory
+#  Stack:
+#    Backend  → Node/Nest or sample backend services
+#    Frontend → Vite + React apps
+#    Mobile   → Expo React Native apps
+#    AI       → Ollama (local LLM)
+#    Cache    → Redis (Docker)
+#    DB       → PostgreSQL (your local machine)
+# ============================================================
+
+services:
+
+  # ──────────────────────────────────────────
+  # 1. AI LAYER
+  # ──────────────────────────────────────────
+
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    #BEFORE
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:11434"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 5
+    #AFTER
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - ai-network
+
+  ollama-init:
+    image: ollama/ollama
+    container_name: ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        echo 'Pulling qwen2.5-coder model...' &&
+        OLLAMA_HOST=http://ollama:11434 ollama pull qwen2.5-coder:7b &&
+        echo 'Model ready!'
+      "
+    networks:
+      - ai-network
+    restart: "no"
+
+  # ──────────────────────────────────────────
+  # 2. AGENT LAYER
+  # ──────────────────────────────────────────
+
+  telegram-bot:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: telegram-bot
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - AGENT_URL=http://agent-controller:5000
+    depends_on:
+      - agent-controller
+    restart: unless-stopped
+    networks:
+      - ai-network
+    volumes:
+      - ./telegram-bot/src:/app/src
+
+  agent-controller:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: agent-controller
+    ports:
+      - "5000:5000"
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - LLM_ROUTER_URL=http://llm-router:6000
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@host.docker.internal:${POSTGRES_PORT}/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./agent/src:/app/src
+      - ./projects:/projects
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - llm-router
+      - redis
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  llm-router:
+    build:
+      context: ./llm
+      dockerfile: Dockerfile
+    container_name: llm-router
+    ports:
+      - "6000:6000"
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5-coder:7b}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_MODEL=deepseek-chat
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - CLAUDE_MODEL=claude-haiku-4-5-20251001
+      - DEFAULT_PROVIDER=${DEFAULT_MODEL:-ollama}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  # ──────────────────────────────────────────
+  # 3. TESTING LAYER
+  # ──────────────────────────────────────────
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.40.0-jammy
+    container_name: playwright
+    volumes:
+      - ./projects:/projects
+      - ./testing/playwright:/testing
+      - ./testing/screenshots:/screenshots
+    working_dir: /testing
+    command: tail -f /dev/null
+    depends_on:
+      - hello-world-web
+    networks:
+      - ai-network
+
+  # NOTE: iOS Simulator + Android Emulator run on YOUR local machine
+  # Triggered via: shared/scripts/open-simulator.sh
+
+  # ──────────────────────────────────────────
+  # 4. PROJECT LAYER
+  # ──────────────────────────────────────────
+
+  hello-world-api:
+    build:
+      context: ./projects/hello-world/backend
+      dockerfile: Dockerfile
+    container_name: hello-world-api
+    ports:
+      - "4001:4001"
+    volumes:
+      - ./projects/hello-world/backend:/app
+      - /app/node_modules
+    working_dir: /app
+    command: npm start
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  hello-world-web:
+    build:
+      context: ./projects/hello-world/frontend
+      dockerfile: Dockerfile
+    container_name: hello-world-web
+    ports:
+      - "5174:5174"
+    volumes:
+      - ./projects/hello-world/frontend:/app
+      - /app/node_modules
+    working_dir: /app
+    environment:
+      - VITE_API_URL=http://hello-world-api:4001
+    depends_on:
+      - hello-world-api
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  # ──────────────────────────────────────────
+  # 5. DATA LAYER
+  # ──────────────────────────────────────────
+
+  # PostgreSQL → YOUR local machine
+  # Setup steps:
+  #   1. listen_addresses = '*' in postgresql.conf
+  #   2. Add: host all all 172.16.0.0/12 md5 in pg_hba.conf
+  #   3. brew services restart postgresql
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - ai-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ──────────────────────────────────────────
+# NETWORKS
+# ──────────────────────────────────────────
+
+networks:
+  ai-network:
+    driver: bridge
+    name: ai-dev-factory-network
+
+# ──────────────────────────────────────────
+# VOLUMES
+# ──────────────────────────────────────────
+
+volumes:
+  ollama_data:
+  redis_data:

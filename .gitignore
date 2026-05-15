@@ -1,0 +1,28 @@
+# Environment
+.env
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Docker volumes
+ollama_data/
+pg_data/
+redis_data/
+
+# Expo
+**/.expo/
+**/dist/
+**/build/
+
+# OS
+.DS_Store
+**/.DS_Store
+__MACOSX/
+
+# Screenshots (generated)
+testing/screenshots/*
+!testing/screenshots/.gitkeep
+
+# Logs
+*.log

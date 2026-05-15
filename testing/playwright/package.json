@@ -1,0 +1,16 @@
+{
+  "name": "playwright-testing",
+  "version": "1.0.0",
+  "description": "AI Dev Factory — Playwright Web Testing",
+  "type": "module",
+  "scripts": {
+    "test":          "playwright test",
+    "test:headed":   "playwright test --headed",
+    "test:report":   "playwright show-report",
+    "test:project":  "playwright test --project"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.40.0",
+    "fs-extra": "^11.2.0"
+  }
+}

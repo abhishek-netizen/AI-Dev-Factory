@@ -1,0 +1,52 @@
+{
+  "server": {
+    "address":       "0.0.0.0",
+    "port":          4723,
+    "base-path":     "/wd/hub",
+    "log-level":     "info",
+    "relaxed-security": true
+  },
+
+  "android": {
+    "platformName":       "Android",
+    "automationName":     "UiAutomator2",
+    "deviceName":         "Android Emulator",
+
+    "platformVersion":    "13.0",
+
+    "appPackage":         "com.example.app",
+    "appActivity":        ".MainActivity",
+
+    "noReset":            true,
+    "fullReset":          false,
+
+    "newCommandTimeout":  300,
+    "adbExecTimeout":     20000,
+
+    "systemPort":         8201,
+
+    "remoteAdbHost":      "host.docker.internal",
+    "adbPort":            5037
+  },
+
+  "ios": {
+    "platformName":       "iOS",
+    "automationName":     "XCUITest",
+    "deviceName":         "iPhone 15",
+
+    "platformVersion":    "17.0",
+
+    "bundleId":           "com.example.app",
+
+    "noReset":            true,
+    "fullReset":          false,
+
+    "newCommandTimeout":  300,
+
+    "webDriverAgentUrl":  "http://host.docker.internal:8100"
+  },
+
+  "screenshots": {
+    "outputDir": "/screenshots"
+  }
+}
