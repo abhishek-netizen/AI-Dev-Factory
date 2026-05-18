@@ -171,4 +171,4 @@ curl -X POST http://localhost:5000/project -H 'Content-Type: application/json' -
 
 ## Licensing
 
-Add a license file when you open source this repository.
+under MIT-Licensing look for LICENSE file in the root
