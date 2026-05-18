@@ -15,7 +15,7 @@ export async function routeToLLM(prompt, taskContent) {
       type:    'code-gen',
       context: taskContent,
     },
-    { timeout: 180000 }  // 3 min timeout for large code gen tasks
+    { timeout: 600000 }  // 10 min timeout to match local Ollama provider
   );
 
   const { response, provider, complexity, duration_ms } = res.data;

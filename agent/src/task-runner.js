@@ -20,30 +20,34 @@ async function loadProjectContext(projectName) {
       : '';
   };
 
-  const [spec, architecture, rules] = await Promise.all([
-    readIfExists('PROJECT_SPEC.md'),
+  const [definition, architecture, rules, spec] = await Promise.all([
+    readIfExists('PROJ_DEFINATION.md'),
     readIfExists('ARCHITECTURE.md'),
     readIfExists('CODING_RULES.md'),
+    readIfExists('PROJECT_SPEC.md'),
   ]);
 
-  return { spec, architecture, rules };
+  return { definition, architecture, rules, spec };
 }
 
 // ── Build prompt ───────────────────────────────────────────
 
-function buildPrompt({ spec, architecture, rules, task }) {
+function buildPrompt({ definition, architecture, rules, spec, task }) {
   return `
 You are an expert full-stack developer. Your job is to implement the task below.
 Follow ALL the rules and architecture guidelines exactly.
 
-=== PROJECT SPEC ===
-${spec}
+=== PROJECT DEFINITION ===
+${definition}
 
 === ARCHITECTURE ===
 ${architecture}
 
 === CODING RULES ===
 ${rules}
+
+=== PROJECT SPEC (fallback) ===
+${spec}
 
 === TASK TO IMPLEMENT ===
 ${task}
@@ -82,7 +86,27 @@ function parseResponse(raw) {
     throw new Error('LLM returned invalid JSON — could not parse response');
   }
 }
+async function tryDirectHeadingUpdate(projectDir, taskFileName, taskContent) {
+  const targetFile = path.join(projectDir, 'frontend', 'src', 'App.jsx');
+  if (!(await fs.pathExists(targetFile))) return false;
 
+  if (!/frontend\/src\/App\.jsx/i.test(taskContent)) return false;
+
+  const changeMatch = taskContent.match(/from\s+[`'"]([^`'"]+)[`'"]\s+to\s+[`'"]([^`'"]+)[`'"]/i);
+  if (!changeMatch) return false;
+
+  const [, oldText, newText] = changeMatch;
+  const fileText = await fs.readFile(targetFile, 'utf-8');
+  const headingRegex = /<h1>([\s\S]*?)<\/h1>/i;
+  if (!headingRegex.test(fileText)) return false;
+
+  const updated = fileText.replace(headingRegex, `<h1>${newText}</h1>`);
+  if (updated === fileText) return false;
+
+  await fs.writeFile(targetFile, updated, 'utf-8');
+  await gitManager.commit(projectDir, taskFileName, `feat(${taskFileName}): Updated heading to '${newText}'`);
+  return true;
+}
 // ── Task runner ────────────────────────────────────────────
 
 async function run(projectName, taskFileName) {
@@ -93,33 +117,43 @@ async function run(projectName, taskFileName) {
   await redis.set(`task:${projectName}:${taskFileName}:status`, 'running');
 
   // 1. Read task file
-  console.log(chalk.blue('\n[1/6] Reading task file...'));
+  console.log(chalk.blue('\n[1/7] Reading task file...'));
   if (!(await fs.pathExists(taskPath))) {
     throw new Error(`Task file not found: ${taskPath}`);
   }
   const taskContent = await fs.readFile(taskPath, 'utf-8');
 
   // 2. Load project context
-  console.log(chalk.blue('[2/6] Loading project context...'));
+  console.log(chalk.blue('[2/7] Loading project context...'));
   const context = await loadProjectContext(projectName);
 
-  // 3. Build prompt and call LLM
-  console.log(chalk.blue('[3/6] Calling LLM...'));
+  // 3. Try a direct update for simple heading tasks before calling the LLM
+  console.log(chalk.blue('[3/7] Checking for direct update...'));
+  const directUpdate = await tryDirectHeadingUpdate(projectDir, taskFileName, taskContent);
+  if (directUpdate) {
+    console.log(chalk.green('✓ Direct heading update applied'));
+    await redis.set(`task:${projectName}:${taskFileName}:status`, 'complete');
+    await redis.set(`task:${projectName}:${taskFileName}:error`, '');
+    return;
+  }
+
+  // 4. Build prompt and call LLM
+  console.log(chalk.blue('[4/7] Calling LLM...'));
   const prompt   = buildPrompt({ ...context, task: taskContent });
   const rawReply = await routeToLLM(prompt, taskContent);
 
-  // 4. Parse response
-  console.log(chalk.blue('[4/6] Parsing LLM response...'));
+  // 5. Parse response
+  console.log(chalk.blue('[5/7] Parsing LLM response...'));
   const result = parseResponse(rawReply);
   console.log(chalk.gray(`  Summary: ${result.summary}`));
   console.log(chalk.gray(`  Files:   ${result.files.length}`));
 
-  // 5. Write files
-  console.log(chalk.blue('[5/6] Writing files...'));
+  // 6. Write files
+  console.log(chalk.blue('[6/7] Writing files...'));
   await fileWriter.writeFiles(projectDir, result.files, result.commands);
 
-  // 6. Commit to git
-  console.log(chalk.blue('[6/6] Committing to git...'));
+  // 7. Commit to git
+  console.log(chalk.blue('[7/7] Committing to git...'));
   await gitManager.commit(projectDir, taskFileName, result.summary);
 
   // Mark task as complete

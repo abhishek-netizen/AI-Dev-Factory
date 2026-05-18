@@ -231,17 +231,50 @@ app.post('/project', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'name is required' });
 
   const projectDir = path.join('/projects', name);
-  const templateDir = path.join('/projects', '_template');
 
   try {
     if (await fs.pathExists(projectDir)) {
       return res.status(409).json({ error: `Project '${name}' already exists` });
     }
-    await fs.copy(templateDir, projectDir);
+
+    await fs.ensureDir(projectDir);
     await fs.ensureDir(path.join(projectDir, 'backend'));
     await fs.ensureDir(path.join(projectDir, 'frontend'));
     await fs.ensureDir(path.join(projectDir, 'mobile'));
     await fs.ensureDir(path.join(projectDir, 'tasks'));
+
+    // Create default project definition files
+    await fs.writeFile(path.join(projectDir, 'PROJ_DEFINATION.md'),
+      `# ${name} Project Definition\n\n` +
+      `This project contains a frontend and a backend. Use this file as the primary project definition for task execution.\n\n` +
+      `## Frontend\n` +
+      `- Location: frontend/\n` +
+      `- Main file: frontend/src/App.jsx\n\n` +
+      `## Backend\n` +
+      `- Location: backend/\n` +
+      `- Main file: backend/src/index.js\n`,
+      'utf-8'
+    );
+
+    await fs.writeFile(path.join(projectDir, 'ARCHITECTURE.md'),
+      `# Architecture\n\n` +
+      `This is a simple full-stack project with a React frontend and an Express backend.\n`,
+      'utf-8'
+    );
+
+    await fs.writeFile(path.join(projectDir, 'CODING_RULES.md'),
+      `# Coding Rules\n\n` +
+      `- Update existing files instead of creating duplicates.\n` +
+      `- Use relative paths from the project root.\n`,
+      'utf-8'
+    );
+
+    await fs.writeFile(path.join(projectDir, 'tasks', '001-example.md'),
+      `# Example Task\n\n` +
+      `Create a simple task using the project definition in PROJ_DEFINATION.md.\n`,
+      'utf-8'
+    );
+
     res.json({ status: 'created', name, path: projectDir });
   } catch (err) {
     res.status(500).json({ error: err.message });

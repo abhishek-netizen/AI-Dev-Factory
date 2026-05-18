@@ -1,40 +1,32 @@
 # AI Dev Factory
 
-A local AI development orchestration repository for building and testing agent-driven workflows.
+AI Dev Factory is an opinionated orchestration repo for building, testing and iterating agent-driven developer workflows. It provides a full local stack (LLM, router, agent controller, Telegram interface, and example projects) that you can adapt for your own projects — not just local LLM experiments.
 
-This repo contains:
+This repository bundles:
 
-- `docker-compose.yml` — master service orchestration for the AI stack and project apps
-- `agent/` — AI agent controller service that manages tasks, Docker, git, and orchestration
-- `llm/` — router service for LLM providers (Ollama, Claude, Deepseek)
-- `telegram-bot/` — Telegram bot interface for driving the agent
-- `testing/` — Playwright and Android/iOS testing scaffolding
-- `shared/` — shared architecture and coding rule artifacts
-- `projects/hello-world/` — a minimal full-stack quick-start example project that runs in Docker and verifies the repo setup.
+- `docker-compose.yml` — service orchestration for the AI stack and example apps
+- `agent/` — agent controller that reads task files, calls an LLM, writes files, runs commands and commits to git
+- `llm/` — LLM router and provider adapters (Ollama, Claude, Deepseek)
+- `telegram-bot/` — Telegram interface for sending commands and free-text tasks
+- `projects/` — example projects and a scaffolding mechanism for adding your own
+- `testing/` — Playwright / device test harnesses and screenshots
+- `shared/` — reusable docs and coding rules for templates and new projects
 
+This README explains how to run the stack, how tasks work, and how to adapt the system for your own projects.
 
-## Repository structure
+## High-level overview
 
-- `docker-compose.yml`: orchestrates services including Ollama, Redis, agent controller, LLM router, Telegram bot, Playwright, and the local example project stack.
-- `agent/`: Node.js service for task processing, Docker management, and Git operations.
-- `llm/`: Node.js service that routes requests to local Ollama or external providers.
-- `telegram-bot/`: Node.js service that connects a Telegram bot to the agent.
-- `projects/hello-world/`: minimal full-stack example with separate backend and frontend folders.
-- `testing/`: automated test scaffolding and screenshots.
-- `shared/`: reusable docs and rules for architecture and coding conventions.
+- The `telegram-bot` service is the user-facing entry point. It accepts commands and free-text instructions.
+- The `agent-controller` manages tasks: it loads project context, calls the `llm-router`, writes files into project folders, runs commands, and commits to git.
+- The `llm-router` selects a provider (local `ollama` by default) and returns generated code/patches.
+- Projects live in `projects/<project>/`. Each project should include a `PROJ_DEFINATION.md` that describes the code layout. The agent uses that file to infer target file paths.
 
-## Quick start
+## Quick start (run locally)
 
-### Prerequisites
+Prerequisites
 
-- Docker
-- Docker Compose
-- A local PostgreSQL instance (the repo currently expects Postgres on the host machine)
-- A `.env` file in the workspace root containing your secret values
-
-### Required environment variables
-
-Create a `.env` file at the repository root with at least the following values:
+- Docker & Docker Compose
+- A `.env` file at the repo root with at least:
 
 ```env
 TELEGRAM_TOKEN=your_telegram_bot_token
@@ -45,137 +37,132 @@ POSTGRES_PORT=5432
 JWT_SECRET=your_jwt_secret
 ```
 
-Optional provider variables:
-
-```env
-OLLAMA_MODEL=qwen2.5-coder:7b
-DEEPSEEK_API_KEY=your_deepseek_api_key
-CLAUDE_API_KEY=your_claude_api_key
-DEFAULT_MODEL=ollama
-```
-
-### Start the stack
-
-From the repository root:
+Start everything:
 
 ```bash
 docker compose up -d --build
 ```
 
-Run the quick-start hello world project only:
+Start only the example app (frontend + backend):
 
 ```bash
 docker compose up -d --build hello-world-api hello-world-web
 ```
 
-Then open:
+Open the frontend:
 
 ```text
 http://localhost:5174
 ```
 
-Check running services:
-
-```bash
-docker compose ps
-```
-
-Follow logs:
+Tail logs for investigation:
 
 ```bash
 docker compose logs -f agent-controller
+docker compose logs -f telegram-bot
 ```
 
-### Stop the stack
+Stop the stack:
 
 ```bash
 docker compose down
 ```
 
-## Service overview
+## Projects (what's inside `projects/`)
 
-- `ollama`: local Ollama LLM service.
-- `ollama-init`: preloads the `qwen2.5-coder:7b` model.
-- `agent-controller`: orchestrates AI tasks and communicates with Docker and project files.
-- `llm-router`: routes LLM requests to Ollama or external APIs.
-- `telegram-bot`: exposes a Telegram bot interface.
-- `playwright`: optional test container for browser automation.
-- `hello-world-api`: hello-world backend service.
-- `hello-world-web`: hello-world frontend service.
-- `redis`: caching backend.
+Each project follows a simple layout and provides a `PROJ_DEFINATION.md` that describes the code layout. The agent uses that file to resolve where tasks should apply.
+
+- `projects/hello-world/` — Minimal full-stack example included to verify the stack. Contains:
+  - `frontend/` — Vite + React app (main file: `frontend/src/App.jsx`)
+  - `backend/` — Express app (main file: `backend/src/index.js`)
+  - `tasks/` — markdown tasks that the agent reads and executes
+  - `PROJ_DEFINATION.md` — canonical project definition used by the agent
+
+You can add your own project under `projects/your-app/` and include a `PROJ_DEFINATION.md` describing where the frontend/backend live.
+
+## How tasks work (short)
+
+1. Write a task file in `projects/<project>/tasks/<task>.md` (or use the bot to create one).
+2. Trigger the task with Telegram or `POST /task` on the agent:
+
+   - Telegram: `/start_task <project> <task>` or send free-text like `Change heading to "X"` (bot creates `.taskN.md`).
+   - API: `POST http://localhost:5000/task { project: "hello-world", task: "task1.md" }`
+
+3. Agent `task-runner`:
+   - Loads `PROJ_DEFINATION.md` (primary), `ARCHITECTURE.md`, and `CODING_RULES.md` for context
+   - For simple, explicit edits (e.g. change a heading), the agent can perform a direct update without calling the LLM
+   - Otherwise the agent calls `llm-router` and expects a JSON response with `summary`, `files`, and optional `commands`
+   - `file-writer` writes files into `projects/<project>/` (the repo mounts `./projects` into the agent container so edits are persistent on disk)
+   - `git-manager` commits the changes in the project repo
+   - Status is updated in Redis and the bot notifies the user
+
+### Example task (short form)
+
+Task content can be short if `PROJ_DEFINATION.md` exists. For example, `task1.md` may simply be:
+
+```
+Change the frontend page heading to AI DEV FACTORY
+```
+
+The agent will infer `frontend/src/App.jsx` from the `PROJ_DEFINATION.md` and apply the change.
 
 ## Telegram bot usage
 
-The Telegram bot is the primary user interface for this repo. It forwards your commands to the `agent-controller`, which then runs tasks or returns status.
+1. Add your bot token to `.env` (`TELEGRAM_TOKEN`).
+2. Start the stack and open Telegram to your bot.
+3. Commands you can use:
+   - `/start_task <project> <task>` — run an existing task file
+   - `/status <project> <task>` — check task status
+   - `/tasks <project>` — list tasks
+   - `/new_project <name>` — scaffold a new project skeleton (creates `PROJ_DEFINATION.md`)
+   - Send free-text instructions — the bot creates a `.taskN.md` and runs it
 
-### Send a message to the bot
+Example free-text message:
 
-1. Start the bot in Telegram and send `/start` or `/help`.
-2. Use one of the supported commands:
-   - `/start_task <project> <task>` — run a task from a project's `tasks/` folder
-   - `/status <project> <task>` — check a specific task status
-   - `/tasks <project>` — list available tasks for a project
-   - `/logs <container>` — fetch container logs
-   - `/new_project <name>` — scaffold a new project from the template
+```
+Change the heading to "AI DEV FACTORY"
+```
 
-### Natural language support
+When a task runs, the bot reports progress and posts a completion message with the project and task name.
 
-The bot also understands simple text messages like:
-- `status`
-- `help`
-- `restart <container>`
+### Screenshot
 
-### Free-text task creation
+Include a screenshot showing the bot flow in the README for clarity. Add the image to `docs/assets/telegram-task-run.png` and reference it below:
 
-You can send a plain instruction directly to the bot and it will create and execute a task automatically.
-For example:
+![Telegram task run](docs/assets/telegram-task-run.png)
 
-- `Change the heading to "Batmans Dark night"`
+If you want, I can add the screenshot file in the repo; paste the image into `docs/assets/telegram-task-run.png` and it will appear here.
 
-When the bot receives a plain instruction it will:
-- create a new file like `projects/<project>/tasks/.taskN.md`
-- call the agent endpoint `/task-from-bot`
-- mark the new task as `running`
-- attempt a quick local update or run the task through the LLM
-- notify you when the task is complete or failed
+## Creating new projects programmatically
 
-This makes Telegram a lightweight task authoring interface without manual task file creation.
-
-### How task execution works
-
-When you send `/start_task <project> <task>`:
-
-1. The Telegram bot receives your command and calls `agent-controller` at `/task`.
-2. `agent-controller` marks the task as `running` in Redis and reads the task file from `/projects/<project>/tasks/<task>`.
-3. It loads project context from `PROJECT_SPEC.md`, `ARCHITECTURE.md`, and `CODING_RULES.md`.
-4. The agent builds a prompt and sends it to the LLM router.
-5. The LLM response must return JSON containing `summary`, `files`, and optional `commands`.
-6. The agent writes files into the project, runs post-write commands, and commits the change to git.
-7. Task status is updated to `complete` or `failed` in Redis.
-
-You can check progress with `/status <project> <task>` or `/tasks <project>`.
-
-## Working with the codebase
-
-- Edit the agent controller in `agent/src/`.
-- Edit the LLM router in `llm/src/`.
-- Edit the Telegram interface in `telegram-bot/src/`.
-- Keep local app code in `projects/hello-world/` or your own project folder private if you plan to open source the repo.
-
-## Useful commands
+Use the agent endpoint to scaffold a new project:
 
 ```bash
-# Build and run all services
+curl -X POST http://localhost:5000/project -H 'Content-Type: application/json' -d '{"name":"my-app"}'
+```
+
+This creates the directory structure and default definition files (`PROJ_DEFINATION.md`, `ARCHITECTURE.md`, `CODING_RULES.md`, `tasks/001-example.md`).
+
+## Development notes for contributors
+
+- Project code is mounted into the agent container via Docker volumes (`./projects:/projects`) so edits are directly written to disk and tracked by git in `projects/<project>`.
+- The agent prefers `PROJ_DEFINATION.md` for task context — keep it minimal and explicit (paths to key files).
+- If the LLM is slow, the agent has a longer timeout for local providers and will attempt simple direct edits first.
+
+## Useful commands (recap)
+
+```bash
+# Start full stack
 docker compose up -d --build
 
-# Tail logs for a single service
-docker compose logs -f telegram-bot
+# Start example project services only
+docker compose up -d --build hello-world-api hello-world-web
 
-# Stop and remove containers
-docker compose down
+# View agent logs
+docker compose logs -f agent-controller
 
-# Remove cached project folder from git if tracked
-git rm -r --cached projects/hello-world
+# Create a project scaffold
+curl -X POST http://localhost:5000/project -H 'Content-Type: application/json' -d '{"name":"my-app"}'
 ```
 
 ## Licensing

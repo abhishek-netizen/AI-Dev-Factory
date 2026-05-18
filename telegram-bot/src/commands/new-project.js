@@ -28,7 +28,7 @@ export async function newProject(bot, msg, match) {
       `✅ *Project created: ${projectName}*\n\n` +
       `Scaffold is ready at \`/projects/${projectName}/\`\n\n` +
       `Next steps:\n` +
-      `1. Edit \`PROJECT_SPEC.md\` with your project details\n` +
+      `1. Edit \`PROJ_DEFINATION.md\` with your project details\n` +
       `2. Add tasks to \`tasks/\` folder\n` +
       `3. Run \`/start_task ${projectName} 001-yourfirsttask.md\``,
       { chat_id: chatId, message_id: sent.message_id, parse_mode: 'Markdown' }
