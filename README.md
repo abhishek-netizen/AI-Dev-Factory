@@ -38,15 +38,6 @@ TELEGRAM_TOKEN=your_telegram_bot_token_here
 # Bot security
 ALLOWED_CHAT_IDS=your_allowed_chat_ids_here
 
-# Database
-POSTGRES_USER=your_postgres_user
-POSTGRES_PASSWORD=your_postgres_password
-POSTGRES_DB=your_postgres_db_name
-POSTGRES_PORT=5432
-
-# JWT
-JWT_SECRET=your_jwt_secret
-
 # LLM APIs
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 CLAUDE_API_KEY=your_claude_api_key_here
