@@ -127,11 +127,7 @@ When a task runs, the bot reports progress and posts a completion message with t
 
 ### Screenshot
 
-Include a screenshot showing the bot flow in the README for clarity. Add the image to `docs/assets/telegram-task-run.png` and reference it below:
-
-![Telegram task run](docs/assets/telegram-task-run.png)
-
-If you want, I can add the screenshot file in the repo; paste the image into `docs/assets/telegram-task-run.png` and it will appear here.
+![Telegram task run](docs/telegram-task-run.png)
 
 ## Creating new projects programmatically
 
