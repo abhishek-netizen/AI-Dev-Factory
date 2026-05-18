@@ -29,7 +29,17 @@ Prerequisites
 - A `.env` file at the repo root with at least:
 
 ```env
-TELEGRAM_TOKEN=your_telegram_bot_token
+# Telegram
+TELEGRAM_TOKEN=your_telegram_bot_token_here
+
+# Get your chat ID by messaging @userinfobot on Telegram
+ALLOWED_CHAT_IDS=your_allowed_chat_ids_here
+
+# LLM APIs
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+CLAUDE_API_KEY=your_claude_api_key_here
+OLLAMA_MODEL=qwen2.5-coder:7b # ollama | deepseek | claude
+DEFAULT_MODEL=ollama
 ```
 
 Start everything:
