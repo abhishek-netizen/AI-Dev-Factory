@@ -16,6 +16,8 @@ This README explains how to run the stack, how tasks work, and how to adapt the 
 
 ## High-level overview
 
+![Dev-Factory](docs/image.png)
+
 - The `telegram-bot` service is the user-facing entry point. It accepts commands and free-text instructions.
 - The `agent-controller` manages tasks: it loads project context, calls the `llm-router`, writes files into project folders, runs commands, and commits to git.
 - The `llm-router` selects a provider (local `ollama` by default) and returns generated code/patches.
