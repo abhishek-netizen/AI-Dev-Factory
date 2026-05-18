@@ -30,11 +30,6 @@ Prerequisites
 
 ```env
 TELEGRAM_TOKEN=your_telegram_bot_token
-POSTGRES_USER=your_postgres_user
-POSTGRES_PASSWORD=your_postgres_password
-POSTGRES_DB=your_postgres_db_name
-POSTGRES_PORT=5432
-JWT_SECRET=your_jwt_secret
 ```
 
 Start everything:
