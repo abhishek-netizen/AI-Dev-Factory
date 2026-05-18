@@ -25,15 +25,27 @@ This README explains how to run the stack, how tasks work, and how to adapt the 
 
 Prerequisites
 
+- A Local ollama
 - Docker & Docker Compose
+- LLM API config
+- Telegram token / allowed chat IDs
 - A `.env` file at the repo root with at least:
 
 ```env
 # Telegram
 TELEGRAM_TOKEN=your_telegram_bot_token_here
 
-# Get your chat ID by messaging @userinfobot on Telegram
+# Bot security
 ALLOWED_CHAT_IDS=your_allowed_chat_ids_here
+
+# Database
+POSTGRES_USER=your_postgres_user
+POSTGRES_PASSWORD=your_postgres_password
+POSTGRES_DB=your_postgres_db_name
+POSTGRES_PORT=5432
+
+# JWT
+JWT_SECRET=your_jwt_secret
 
 # LLM APIs
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
